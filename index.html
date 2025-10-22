@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>Envío Masivo de Correos SMTP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, Arial; margin: 20px; max-width: 880px; }
+    label { display:block; margin-top: 10px; font-weight:600; }
+    input, textarea, select { width:100%; padding:8px; margin-top:4px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .btn { margin-top:16px; padding:10px 14px; font-weight:600; cursor:pointer; }
+    .log { white-space:pre-wrap; background:#f6f8fa; padding:10px; border:1px solid #ddd; margin-top:12px; max-height:300px; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>Envío Masivo de Correos (SMTP)</h1>
+  <p>Completa credenciales SMTP, redacta el mensaje y sube el Excel.<br>
+  El mensaje admite <code>{{nombre}}</code>. Excel columnas: <b>email</b>, (<b>nombre</b> o <b>NombreCompleto</b>), <i>asunto</i> opcional.</p>
+
+  <div class="row">
+    <div>
+      <label>Usuario (correo)</label>
+      <input id="user" type="email" placeholder="tucorreo@empresa.cl" required>
+    </div>
+    <div>
+      <label>Contraseña</label>
+      <input id="pass" type="password" placeholder="••••••••" required>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>Servidor SMTP</label>
+      <input id="smtp" type="text" placeholder="smtp.empresa.cl" required>
+    </div>
+    <div>
+      <label>Puerto</label>
+      <input id="port" type="number" value="587" required>
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>Seguridad</label>
+      <select id="security">
+        <option value="TLS" selected>TLS (587)</option>
+        <option value="SSL">SSL (465)</option>
+        <option value="NONE">Sin cifrado</option>
+      </select>
+    </div>
+    <div>
+      <label>Asunto</label>
+      <input id="subject" type="text" placeholder="Información importante" required>
+    </div>
+  </div>
+
+  <label>Mensaje (HTML permitido; usa {{nombre}})</label>
+  <textarea id="message" rows="7" placeholder="<p>Hola <b>{{nombre}}</b>...</p>" required></textarea>
+
+  <label>Excel con la base</label>
+  <input id="file" type="file" accept=".xlsx,.xls" required>
+
+  <button class="btn" id="send">ENVIAR MASIVO</button>
+
+  <div class="log" id="log"></div>
+
+<script>
+const BACKEND_URL = "https://mailerbackend-c0kk.onrender.com"; // tu backend en Render
+
+const $ = id => document.getElementById(id);
+const log = msg => { $("log").textContent += msg + "\\n"; };
+
+$("send").addEventListener("click", async () => {
+  $("log").textContent = "";
+  const user = $("user").value.trim();
+  const pass = $("pass").value.trim();
+  const smtp = $("smtp").value.trim();
+  const port = $("port").value.trim();
+  const security = $("security").value;
+  const subject = $("subject").value.trim();
+  const message = $("message").value.trim();
+  const fileEl = $("file");
+  if (!user || !pass || !smtp || !port || !subject || !message || !fileEl.files.length) {
+    log("Completa todos los campos y adjunta el Excel.");
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append("user", user);
+  fd.append("pass", pass);
+  fd.append("smtp", smtp);
+  fd.append("port", port);
+  fd.append("security", security);
+  fd.append("subject", subject);
+  fd.append("message", message);
+  fd.append("base", fileEl.files[0]);
+
+  log("Enviando… (puede tardar si la base es grande)");
+  try {
+    const r = await fetch(BACKEND_URL + "/send", { method:"POST", body: fd });
+    const j = await r.json();
+    if (!r.ok || !j.ok) {
+      log("Error: " + (j.error || r.status));
+      return;
+    }
+    log("✓ Total: " + j.total);
+    log("✓ OK: " + j.resumen.ok + " | Inválidos: " + j.resumen.invalid + " | Errores: " + j.resumen.error);
+    (j.results || []).slice(0, 10).forEach(x => log(JSON.stringify(x)));
+  } catch (e) {
+    console.error(e);
+    log("Fallo de red o CORS (revisa ALLOWED_ORIGINS en el backend).");
+  }
+});
+</script>
+</body>
+</html>
